@@ -1,0 +1,14 @@
+# Python
+__pycache__/
+*.py[cod]
+
+# Editor settings
+.vscode/
+
+# Hydra run folders (logs and config copies of each run)
+outputs/*
+!outputs/read_me.md
+
+# Results of local runs
+results/*
+!results/read_me.md

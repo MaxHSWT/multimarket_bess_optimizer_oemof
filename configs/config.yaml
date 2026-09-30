@@ -1,0 +1,144 @@
+# Configuration for Battery Optimization
+# Every value can be overridden from the command line (Hydra), e.g. python main.py battery.capacity=4.0
+
+#-----------------------------------------------------
+# Battery:
+#   - Set battery parameters
+#   - Max. marketable power for FCR trading can be limited manually; it is additionally capped by the PQ rule (factor 0.8)
+#-----------------------------------------------------
+battery:
+  capacity: 20.0                 # MWh
+  max_charge_power: 10.0         # MW
+  max_discharge_power: 10.0      # MW
+  charge_efficiency: 0.97
+  discharge_efficiency: 0.98
+  initial_soc: 0.5              # Initial state of charge as a fraction [0..1], only used for the first day of the simulation
+  max_cycles: 2                 # Maximum charge/discharge cycles per day
+  max_marketable_power_fcr: 1.0 # [0..1] Fraction of min(max_charge_power, max_discharge_power)
+
+#-----------------------------------------------------
+# Simulation:
+#   - Set start and end date
+#   - Choose timezone
+#   - Note: Data must be available for this period plus the look-ahead
+#   - Note: Timezone conversions may require additional data at the edges of the period
+#-----------------------------------------------------
+simulation:
+  start_date: "2025-09-29"      # yyyy-mm-dd
+  end_date: "2025-10-02"        # yyyy-mm-dd, end_date is included
+  timezone: "Europe/Berlin"
+
+#-----------------------------------------------------
+# Data:
+#   - Data must be in .csv format (see data/read_me.md for the required structure)
+#   - Energy-market prices need timezone-aware timestamps (e.g. 2025-10-02 20:15:00+02:00)
+#   - UTC, CET and CEST are accepted and converted to the target timezone, as long as the data window is complete
+#   - The FCR import follows the export table of regelleistung.net (DATE_FROM -> date, PRODUCTNAME -> 4 h block)
+#-----------------------------------------------------
+data:
+  base_dir: "data"
+  subfolder: "market-data"      # Subfolder within base_dir containing the CSV files
+  markets:
+    FCR:
+      filename: "demo_fcr-prices.csv"
+      separator: ";"
+      frequency: "4h"
+      date_column: "DATE_FROM"
+      interval_column: "PRODUCTNAME"
+      price_column: "GERMANY_SETTLEMENTCAPACITY_PRICE_[EUR/MW]"
+    DAA:
+      filename: "demo_da-id-prices.csv"
+      separator: ";"
+      frequency: "1h"
+      timestamp_column: "timestamp"
+      price_column: "price_daa"
+    IDA:
+      filename: "demo_da-id-prices.csv"
+      separator: ";"
+      frequency: "15min"
+      timestamp_column: "timestamp"
+      price_column: "price_ida1"
+    IDC:
+      filename: "demo_da-id-prices.csv"
+      separator: ";"
+      frequency: "15min"
+      timestamp_column: "timestamp"
+      price_column: "price_id1"
+
+#-----------------------------------------------------
+# Optimization:
+#   - The rolling horizon defines how far beyond the committed day the optimization looks ahead to determine handover parameters (mainly SoC)
+#   - Myopic optimization: set perfect_foresight = False for every market
+#   - Perfect foresight optimization: set perfect_foresight = True for every market
+#   - Single-market optimization: set run_<market> = False for all other markets
+#-----------------------------------------------------
+optimization:
+  solver: gurobi                # Name of an installed MILP solver (default: gurobi), see requirements.md
+  rolling_horizon:
+    commit_hours: 24            # Committed period per optimization step, must be 24
+    lookahead_hours: 48         # Total optimization horizon, >= commit_hours (e.g. 24 / 36 / 48); > 24 requires price data beyond end_date
+  optimize_FCR:
+    run_FCR: True
+    perfect_foresight: True     # True: FCR is co-optimized with the downstream energy markets | False: myopic FCR optimization
+  optimize_DAA:
+    run_DAA: True
+    perfect_foresight: True     # True: DAA is co-optimized with IDA and IDC | False: optimization on DAA prices only
+  optimize_IDA:
+    run_IDA: True
+    perfect_foresight: True     # True: IDA is co-optimized with IDC | False: optimization on IDA prices only
+  optimize_IDC:
+    run_IDC: True
+    perfect_foresight: True     # No effect, as there are no downstream markets after IDC
+
+#-----------------------------------------------------
+# Grid Constraints (FCA):
+#   - Flexible Connection Agreements limit the maximum charge/discharge power at the grid connection point
+#   - The FCA CSV contains monthly day profiles with 96 values (15 min resolution) as scaling factors [0..1]
+#   - If apply_fca = False, the system runs without FCA constraints (full technical power available)
+#-----------------------------------------------------
+grid_constraints:
+  apply_fca: True
+  base_dir: "data"
+  subfolder: "fca-data"
+  filename: "demo_fca-boundaries.csv"
+  separator: ";"
+
+#-----------------------------------------------------
+# Visualization:
+#   - If plotting is enabled, each daily optimization generates a day and/or a horizon plot
+#   - All plots and the results CSV are saved in output_dir
+#   - Filenames are auto-generated: plot_{date}_day.html, plot_{date}_horizon.html, plot_profit-index.html, results.csv
+#   - General plot styling can be adapted in the plot section
+#-----------------------------------------------------
+plotting:                       # Plot activation
+  enable_plot_day: True
+  enable_plot_horizon: False
+  enable_plot_profit_index: False
+  enable_plot_daily_profit_development: False
+  adapt_soc_axis_scale: True
+  output_dir: "results"         # All plots and results.csv are saved here
+  export:                       # Image export from the html plots
+    format: "jpeg"              # jpeg, png, svg, webp
+    scale: 3                    # Resolution factor: 3 = 3x screen resolution (~300 dpi)
+    width: 900                  # Width in pixels (before scaling)
+    height: 1050                # Height in pixels (before scaling)
+plot:                           # General styling
+  font_family: "Arial Black"
+  bg_color: "white"
+  grid_color: "lightgray"
+  grid_color_soc: "gray"
+  vertical_lines_hours: 3
+  market_colors:
+    FCR: "#1565C0"              # Deep blue
+    DAA: "#E65100"              # Amber orange
+    IDA: "#00695C"              # Teal
+    IDC: "#880E4F"              # Dark magenta
+  opacity:
+    bars: 0.55
+    price: 0.55
+    soc: 0.55
+    fcr_limits: 0.55
+  line_width:
+    price: 2
+    soc: 2
+    limits: 2

@@ -1,0 +1,16 @@
+name: oemof-solph-env
+channels:
+  - gurobi
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - pip
+  - numpy>=2.0
+  - pandas>=2.0
+  - plotly>=6.0
+  - gurobi=12.0          # MILP solver (requires license; see requirements.md; remove for alternative solver)
+  - pip:
+      - oemof.solph==0.6.1
+      - hydra-core==1.3.2
+      - omegaconf==2.3.0
